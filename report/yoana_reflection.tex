@@ -1,0 +1,75 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{hyperref}
+\usepackage{parskip}
+\usepackage{xurl}
+
+\geometry{
+	a4paper,
+	left=2.5cm,
+	right=2.5cm,
+	top=2.5cm,
+	bottom=2.5cm
+}
+
+\onehalfspacing
+
+\begin{document}
+
+\begin{center}
+	{\Large \textbf{Individual Reflection}}\\[0.4em]
+	{\large EEG-Based Mental Stress Detection}\\[0.3em]
+	{\normalsize Yoana Agafonova}\\[0.2em]
+	{\normalsize Data Science Capstone Project --- IMC University of Applied Sciences Krems}\\[0.2em]
+	{\normalsize June 2026}
+\end{center}
+
+\vspace{1em}
+
+\section*{Overview of My Contribution}
+
+Throughout this project, I contributed to all phases of the pipeline, from the initial dataset exploration through to the final evaluation and writing of the report. My work was closely intertwined with my partner Iliana's at every step, and the project was genuinely collaborative. That said, I took particular ownership of the data exploration, the feature extraction implementation, and the analysis of the final model's behavior.
+
+In the early stages, I spent considerable time understanding the structure of the EDF dataset --- the folder organization, the channel layout, the variability in file lengths, and how experimental conditions mapped onto stress and non-stress labels. This groundwork was essential for making correct design decisions later, such as which channels to select and how to handle the class imbalance at the recording level.
+
+For feature extraction, I implemented the windowing logic and the 75-feature pipeline, including the Welch PSD computation and the trapezoidal integration over each frequency band. I also wrote the initial version of the classification report analysis and the feature importance visualization code.
+
+\section*{What I Learned}
+
+This project taught me a great deal about the practical realities of working with biomedical time-series data, which are quite different from the clean, balanced tabular datasets typically used in introductory machine learning courses.
+
+The most conceptually important lesson was understanding cross-validation correctly for sequential data. I had used StratifiedKFold before without questioning it, but this project forced me to think carefully about what a fold actually represents. When windows from the same EDF file can appear in both training and test sets, the model is evaluated on data it has effectively already seen in a correlated form. Discovering that the Random Forest Macro F1 dropped from 0.86 under StratifiedKFold to 0.54 under GroupKFold was genuinely surprising, and it changed how I will approach validation in every future project involving time-series or grouped data.
+
+I also gained hands-on experience with the MNE library, which I had not used before. Learning how to load EDF files, select channels, and apply filters programmatically was satisfying, and I now feel comfortable working with physiological signal formats.
+
+Finally, I developed a much better intuition for class imbalance. I understood it as a concept before, but seeing it manifest concretely --- a model with 82\% accuracy that misses 84\% of one class --- made the problem tangible in a way that theory alone does not.
+
+\section*{Challenges}
+
+The most significant challenge was the class imbalance. We identified it early and knew it would be a problem, but we underestimated how severely it would affect the minority class at the window level even after applying class weighting. In retrospect, I wish we had applied SMOTE or experimented with cost-sensitive Gradient Boosting from the start rather than treating it as a limitation to acknowledge at the end.
+
+The second challenge was interpretability. Feature importance scores from Gradient Boosting tell you which features the model relied on most, but they do not tell you \emph{why} those features discriminate. The dominance of gamma-band power at channel AF4 is interesting, but without artifact rejection, I cannot be fully confident whether this reflects genuine neural activity or muscle contamination. This ambiguity was uncomfortable --- the result looks good, but its meaning is uncertain.
+
+Finally, working with EDF files in Python took longer than expected. The MNE documentation is comprehensive but dense, and debugging channel selection issues and filter parameters required patience.
+
+\section*{Relevant Links}
+
+\begin{itemize}
+    \item \textbf{Source code:} \url{https://github.com/yoana-agafonova/eeg-based-mental-stress-detection-capstone-project.git}
+    \item \textbf{Dataset:} \url{https://data.mendeley.com/datasets/wnshbvdxs2/1}
+\end{itemize}
+
+\section*{Reflection}
+
+Looking back, I am proud of what we produced. The pipeline is complete, the methodology is sound, and we were honest about the limitations rather than inflating our results. The key decision to compare StratifiedKFold against GroupKFold turned what could have been a straightforward modeling exercise into a genuinely interesting methodological contribution.
+
+If I were to do this project again, I would address the class imbalance much earlier and invest time in ICA-based artifact removal. I would also explore whether different window lengths --- say 5 seconds or 20 seconds --- change the feature quality. But I am most glad that we did not report the inflated StratifiedKFold numbers as our main result. The honest Macro F1 of 0.59 under GroupKFold is a more meaningful number, and I believe it reflects what the EEG features can actually achieve.
+
+This project has deepened my interest in biosignal processing, and I hope to build on it in future work.
+
+\end{document}

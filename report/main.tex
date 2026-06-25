@@ -15,6 +15,7 @@
 \usepackage{hyperref}
 \usepackage{caption}
 \usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{enumitem}
 
 % -----------------------------
@@ -68,6 +69,7 @@
 		\begin{tabular}{ll}
 			\textbf{Course:} & \coursename \\
 			\textbf{Authors:} & \authors \\
+			\textbf{Individual Contribution:} & 50\% -- 50\% \\
 			\textbf{Submission Date:} & \submissiondate \\
 		\end{tabular}
 		
@@ -135,15 +137,67 @@
 	% 2. LITERATURE REVIEW
 	% =====================================================
 	\section{Literature Review}
-	
-	% We will fill this section next.
+
+	Mental stress detection using physiological signals has been an active research area for several decades. Early foundational work by Healey and Picard \cite{healey2005} demonstrated that physiological signals, including skin conductance, heart rate, and electromyography, can reliably distinguish stress states during real-world driving tasks. Their work established that objective, sensor-based measurements offer a meaningful improvement over self-reported assessments, which are inherently subjective and susceptible to recall bias.
+
+	Electroencephalography has since become a widely used modality for stress monitoring because it captures direct neural correlates of cognitive and emotional states. A review by Alberdi et al.~\cite{alberdi2016} systematically examined physiological and behavioral signals for automatic stress recognition and highlighted EEG as one of the most informative channels, particularly when combined with frequency-domain features. More recently, Saeed et al.~\cite{saeed2020} proposed a classification framework for long-term stress using psychological labeling and EEG recordings, achieving competitive results through frequency band power extraction followed by traditional machine learning classifiers.
+
+	A central finding across the EEG stress detection literature concerns the relevance of specific frequency bands. Studies consistently report that the alpha band (8--13~Hz) and beta band (13--30~Hz) are the most informative for stress classification. Increased beta power and decreased alpha power are associated with heightened cognitive arousal and stress, while theta activity (4--8~Hz) has been linked to emotional regulation \cite{bandratios2021}. The gamma band (30--45~Hz) has received less attention in traditional machine learning approaches, though it is associated with high-level cognitive processing.
+
+	The choice of machine learning models for EEG-based stress classification varies across the literature. Logistic Regression, Support Vector Machines, Random Forests, and Gradient Boosting classifiers have all been applied with varying success \cite{stressreview2022}. SVM with radial basis function kernels is frequently used due to its ability to find non-linear decision boundaries in high-dimensional feature spaces. Ensemble methods such as Random Forest and Gradient Boosting have shown competitive performance, particularly when the training set is large enough to avoid overfitting. Gradient Boosting in particular builds an additive model in a stage-wise fashion, as described by Friedman \cite{friedman2001}, and has proven effective for tabular feature data in biomedical settings.
+
+	A common challenge in the EEG stress detection literature is evaluation validity. Many studies use random cross-validation without accounting for the fact that multiple recordings may originate from the same subject or session. This leads to data leakage and inflated performance estimates. Studies such as the review by Stuldreher et al.~\cite{stuldreher2021} emphasize the importance of subject-independent validation to ensure that models generalize to new individuals rather than memorizing session-specific artifacts.
+
+	Based on the literature, the expected performance of a well-designed EEG stress classifier under subject-independent or file-independent evaluation is typically in the range of 70--85\% accuracy and 0.55--0.75 Macro F1-score for binary stress/non-stress classification. These values reflect the inherent difficulty of the problem due to inter-subject variability, class imbalance, and EEG artifact contamination. These benchmarks serve as our success criteria for this project.
 	
 	% =====================================================
 	% 3. METHODOLOGY
 	% =====================================================
 	\section{Methodology}
-	
-	% We will fill this section after the literature review.
+
+	\subsection{Data Collection and Description}
+
+	The dataset used in this project was obtained from Mendeley Data \cite{dataset} and consists of 112 EDF files organized into five experimental condition folders. Each EDF file contains a multi-channel EEG recording captured with an EMOTIV EPOC 5-channel sensor kit at a sampling frequency of 128~Hz. The recordings vary in duration across subjects and sessions.
+
+	Four conditions were treated as stress: Complex Mathematical Problem Solving (CMPS, 22 files), Horror Video Stimulation (22 files), Stroop Colour Word Test (SCWT, 24 files), and Trier Mental Challenge Test (TMCT, 24 files). The relaxing music condition (20 files) was used as the non-stress class. This labeling strategy follows the established approach in the literature, where task-induced cognitive load or emotional arousal is treated as the stress condition, and passive relaxation as the non-stress condition.
+
+	The EDF files contain 31 channels in total, including timestamp channels, quality indicators, battery channels, and marker channels. For this project, only the five EEG channels were used: AF3, T7, Pz, T8, and AF4. These channels cover frontal (AF3, AF4), temporal (T7, T8), and central parietal (Pz) regions and represent a balanced spatial coverage given the hardware constraints of the EMOTIV device.
+
+	\subsection{Problem Formulation}
+
+	The task is formulated as a binary classification problem. Let $\mathbf{x} \in \mathbb{R}^{75}$ represent a feature vector extracted from a 10-second EEG window, where 75 features are derived from five channels with 15 features per channel (10 statistical features and 5 frequency-band power features). The target label $y \in \{0, 1\}$ denotes non-stress (0) or stress (1). The goal is to learn a classifier $f: \mathbb{R}^{75} \rightarrow \{0, 1\}$ that generalizes to unseen EDF recordings.
+
+	\subsection{Signal Preprocessing}
+
+	All EEG signals were processed using the MNE Python library \cite{mne}. For each EDF file, the five EEG channels were selected and then filtered with a finite impulse response bandpass filter in the range of 0.5--45~Hz. The lower cutoff at 0.5~Hz removes slow DC drift and baseline wander artifacts, while the upper cutoff at 45~Hz removes high-frequency noise and power-line harmonics. No artifact rejection or independent component analysis was applied, given the scope of this project.
+
+	\subsection{Window-Based Segmentation}
+
+	Rather than extracting one feature vector per EDF file, each recording was divided into consecutive, non-overlapping 10-second windows. At 128~Hz, each window contains 1280 samples per channel. A window is only included if the full 10 seconds of data are available, so the last incomplete segment is discarded. This windowing approach increases the total number of samples from 112 EDF files to 3507 windows, which is essential for training machine learning models.
+
+	The resulting class distribution after windowing is 3037 stress windows (86.6\%) and 470 non-stress windows (13.4\%). This significant imbalance reflects the imbalance at the recording level (92 stress files vs.\ 20 non-stress files) and has important implications for model evaluation.
+
+	\subsection{Feature Extraction}
+
+	For each 10-second window and each of the five EEG channels, 15 features were extracted, giving a total feature dimensionality of 75. The features are divided into two groups:
+
+	\textbf{Statistical features (10 per channel):} mean, standard deviation, variance, minimum, maximum, median, skewness, kurtosis, signal energy (mean squared amplitude), and Shannon entropy computed from the signal histogram.
+
+	\textbf{Frequency-band power features (5 per channel):} the power spectral density was estimated using Welch's method \cite{welch1967}, and the average power was computed by integrating the PSD using the trapezoidal rule over five standard EEG frequency bands: delta (0.5--4~Hz), theta (4--8~Hz), alpha (8--13~Hz), beta (13--30~Hz), and gamma (30--45~Hz).
+
+	\subsection{Model Training and Evaluation}
+
+	Five classical machine learning classifiers were evaluated: Logistic Regression, Random Forest (300 estimators), Support Vector Machine with RBF kernel, K-Nearest Neighbors (k=5), and Gradient Boosting \cite{sklearn}. Each model was wrapped in a scikit-learn \texttt{Pipeline} that applies \texttt{StandardScaler} normalization before classification. Class weighting (\texttt{class\_weight=`balanced'}) was applied to Logistic Regression, Random Forest, and SVM to partially compensate for the class imbalance.
+
+	Two cross-validation strategies were used. First, a 5-fold \texttt{StratifiedKFold} was applied to windows randomly split across folds. This approach is optimistic because windows from the same EDF recording can appear in both training and test folds, introducing data leakage. Second, a 5-fold \texttt{GroupKFold} was applied with groups defined at the EDF-file level, ensuring that all windows from one recording are assigned to a single fold. This is the stricter and more realistic evaluation strategy.
+
+	The evaluation metrics used are: accuracy, balanced accuracy, and Macro F1-score. Balanced accuracy and Macro F1-score are preferred for imbalanced classification because they treat both classes equally. Accuracy alone is misleading when the majority class dominates.
+
+	The final model was selected based on GroupKFold Macro F1-score. A group-based \texttt{GroupShuffleSplit} with 20\% test size was used for the final hold-out evaluation to obtain the classification report and confusion matrix.
+
+	\subsection{Tools and Software}
+
+	The entire workflow was implemented in Python 3. The main libraries used are: MNE \cite{mne} for EDF loading and EEG signal preprocessing, NumPy and SciPy for numerical computations and spectral analysis, pandas for data management, scikit-learn \cite{sklearn} for machine learning pipelines, cross-validation, and metrics, and Matplotlib for visualization.
 	
 	% =====================================================
 	% 4. RESULTS
@@ -151,7 +205,9 @@
 	\section{Results}
 	
 	\subsection{Dataset Distribution}
-	
+
+	The dataset comprises 112 EDF files distributed across five experimental conditions. Four conditions were assigned the stress label (92 files total) and one condition — relaxing music — served as the non-stress class (20 files). After segmenting all recordings into non-overlapping 10-second windows, the resulting dataset contains 3,507 windows. As shown in Table~1 and Table~2, the class distribution is severely imbalanced: 86.6\% of windows are labeled as stress and only 13.4\% as non-stress. This imbalance originates directly from the recording-level imbalance (92 stress vs.\ 20 non-stress files) and is amplified by differences in recording duration across conditions.
+
 	\begin{table}[H]
 		\centering
 		\caption{Distribution of EEG recordings by condition.}
@@ -182,7 +238,9 @@
 	\end{table}
 	
 	\subsection{Exploratory Data Analysis}
-	
+
+	Figure~\ref{fig:class_distribution} illustrates the binary class imbalance at the recording level, while Figure~\ref{fig:condition_distribution} shows the breakdown across all five experimental conditions. The four stress conditions contribute roughly equal numbers of files (22--24 each), whereas the non-stress condition contributes only 20 files. This structural imbalance is inherent to the dataset design and cannot be corrected by resampling at the file level without risking data leakage. Its effect on model performance is discussed in Section~5.
+
 	\begin{figure}[H]
 		\centering
 		\includegraphics[width=0.75\textwidth]{../outputs/plots/class_distribution.png}
@@ -198,14 +256,16 @@
 	\end{figure}
 	
 	\subsection{Signal Visualization}
-	
+
+	Figures~\ref{fig:raw_signal} and~\ref{fig:filtered_signal} show a representative EEG segment before and after bandpass filtering. The raw signal contains low-frequency baseline drift visible as slow oscillations across all channels, as well as high-frequency noise components. After applying the 0.5--45~Hz bandpass filter, the signal is noticeably smoother and the inter-channel differences in oscillatory activity become more apparent. This preprocessing step is important for the subsequent frequency-band power feature extraction, as residual drift or high-frequency noise would otherwise corrupt the computed band power values.
+
 	\begin{figure}[H]
 		\centering
 		\includegraphics[width=0.9\textwidth]{../outputs/plots/example_eeg_signal.png}
 		\caption{Example raw EEG signal segment from selected channels.}
 		\label{fig:raw_signal}
 	\end{figure}
-	
+
 	\begin{figure}[H]
 		\centering
 		\includegraphics[width=0.9\textwidth]{../outputs/plots/filtered_eeg_signal.png}
@@ -214,13 +274,20 @@
 	\end{figure}
 	
 	\subsection{Model Comparison}
-	
+
+	Table~3 and Figure~\ref{fig:model_comparison_group} summarize the cross-validated performance of all five models under 5-fold GroupKFold validation, where all windows from a given EDF file are kept in the same fold. This strategy prevents data leakage caused by temporally correlated windows from the same recording appearing in both training and test sets.
+
+	Gradient Boosting achieves the highest Macro F1-score (0.593) and is selected as the final model. KNN and SVM achieve similar Macro F1 values (0.562 and 0.561 respectively), while Random Forest (0.540) and Logistic Regression (0.522) perform worse. Notably, SVM achieves the highest balanced accuracy (0.643), indicating better sensitivity to the minority class, but its lower Macro F1 reflects weaker precision on the non-stress class.
+
+	It is important to note that when a standard StratifiedKFold strategy was used instead, all models showed substantially inflated Macro F1 scores — for example, Random Forest reached 0.86 under StratifiedKFold compared to 0.54 under GroupKFold. This difference of more than 0.30 points demonstrates the severity of the data leakage problem when correlated windows from the same recording are allowed to appear in both training and test folds.
+
 	\begin{table}[H]
 		\centering
 		\caption{Model comparison using GroupKFold validation by EDF file.}
+		\resizebox{\textwidth}{!}{%
 		\begin{tabular}{lccccc}
 			\toprule
-			\textbf{Model} & \textbf{Accuracy} & \textbf{Balanced Accuracy} & \textbf{Precision Macro} & \textbf{Recall Macro} & \textbf{F1 Macro} \\
+			\textbf{Model} & \textbf{Accuracy} & \textbf{Bal.\ Accuracy} & \textbf{Precision (Macro)} & \textbf{Recall (Macro)} & \textbf{F1 (Macro)} \\
 			\midrule
 			Gradient Boosting & 0.8654 & 0.5809 & 0.6758 & 0.5809 & 0.5929 \\
 			KNN & 0.8349 & 0.5565 & 0.5865 & 0.5565 & 0.5625 \\
@@ -228,7 +295,7 @@
 			Random Forest & 0.8389 & 0.5389 & 0.5884 & 0.5389 & 0.5397 \\
 			Logistic Regression & 0.6541 & 0.6200 & 0.5491 & 0.6200 & 0.5224 \\
 			\bottomrule
-		\end{tabular}
+		\end{tabular}}
 	\end{table}
 	
 	\begin{figure}[H]
@@ -239,7 +306,11 @@
 	\end{figure}
 	
 	\subsection{Final Model Performance}
-	
+
+	The final Gradient Boosting model was evaluated on a held-out test set of 714 windows (20\% of the full dataset, split by EDF file using \texttt{GroupShuffleSplit}). Table~4 shows the full classification report and Figure~\ref{fig:confusion_matrix} shows the corresponding confusion matrix.
+
+	The model achieves an overall accuracy of 0.82 and a Macro F1-score of 0.58, which meets the success criterion of Macro F1 $\geq$ 0.55 defined in Section~2. Stress windows are detected with high recall (0.98), meaning nearly all stress windows are correctly identified. However, non-stress recall is only 0.16 — the model correctly classifies just 23 out of 141 non-stress windows. This asymmetry is a direct consequence of the severe class imbalance: the model has seen approximately 6.5 times more stress windows during training and defaults to predicting stress in most cases. The non-stress F1-score of 0.25 confirms that minority class detection remains the primary weakness of the system.
+
 	\begin{table}[H]
 		\centering
 		\caption{Classification report for the final Gradient Boosting model.}
@@ -265,7 +336,9 @@
 	\end{figure}
 	
 	\subsection{Feature Importance}
-	
+
+	Figure~\ref{fig:feature_importance} shows the top 15 most important features according to the Gradient Boosting model's impurity-based feature importance scores. The dominant feature is gamma-band power at channel AF4, accounting for approximately 26\% of the total importance. Frequency-band power features — particularly in the gamma (30--45~Hz) and alpha (8--13~Hz) ranges — consistently rank above statistical features such as mean or variance. Channels AF4, T8, and T7 (right frontal and bilateral temporal) contribute the most, while Pz (central parietal) and AF3 (left frontal) contribute less. These findings are broadly consistent with the literature: frequency-domain features, especially in the alpha and beta bands, are known to correlate with cognitive arousal and stress \cite{alberdi2016}. The prominence of the gamma band may reflect heightened cognitive load during stress tasks, although it may also partly reflect residual muscle artifacts that overlap with the gamma frequency range.
+
 	\begin{figure}[H]
 		\centering
 		\includegraphics[width=0.9\textwidth]{../outputs/plots/feature_importance_final_model.png}
@@ -277,37 +350,115 @@
 	% 5. DISCUSSION
 	% =====================================================
 	\section{Discussion}
-	
-	% We will fill this section later.
+
+	\subsection{Interpretation of Results}
+
+	The results reveal a clear and important gap between the two cross-validation strategies. Under random \texttt{StratifiedKFold}, Random Forest achieved a Macro F1-score of 0.86, which appears highly competitive. However, once the evaluation was corrected using \texttt{GroupKFold} to prevent windows from the same recording from appearing in both train and test folds, the best Macro F1-score dropped to 0.59 (Gradient Boosting). This large gap -- over 0.27 F1-score -- is a direct consequence of data leakage. Windows extracted from the same EDF file are highly correlated because they capture the same subject under the same condition. A model trained on some windows from a file and tested on others from the same file is essentially memorizing recording-specific signal characteristics rather than learning a general stress classifier.
+
+	The GroupKFold results represent the true generalization capacity of the models. Under this stricter evaluation, all five models perform substantially worse than their random-CV counterparts, and the differences between models narrow considerably. Gradient Boosting ranked first with Macro F1 = 0.59, followed closely by KNN (0.56) and SVM (0.56). SVM with RBF kernel achieved the highest balanced accuracy (0.64) among all models, suggesting it has the best trade-off between sensitivity to both classes, even if its overall accuracy is lower.
+
+	\subsection{Class Imbalance and Non-Stress Detection}
+
+	The most significant challenge revealed by the final model evaluation is the failure to detect non-stress windows reliably. The final Gradient Boosting model achieved a recall of only 0.16 for the non-stress class, meaning it correctly identified only 16\% of non-stress windows. This is a direct consequence of the severe class imbalance (86.6\% stress vs.\ 13.4\% non-stress). Even though class weighting was applied to some models, Gradient Boosting does not natively support it in scikit-learn without manually adjusting sample weights, which was not applied in this project. The model learned to predominantly predict the stress class, achieving high accuracy (0.82) but a very low Macro F1-score (0.58).
+
+	This is a well-known problem in biomedical signal classification and was anticipated from the dataset distribution. Techniques such as SMOTE (Synthetic Minority Over-sampling Technique) or cost-sensitive learning could directly address this limitation in future work.
+
+	\subsection{Feature Importance}
+
+	The feature importance analysis from the final Gradient Boosting model reveals that gamma-band power from the AF4 channel is by far the most important feature, accounting for approximately 26\% of total importance. This finding is somewhat surprising, as the alpha and beta bands are typically highlighted in the stress detection literature. The prominence of gamma power could reflect high-frequency cognitive engagement during the stress tasks, but it could also indicate that some high-frequency artifacts were not fully removed by the 45~Hz filter cutoff. Several other frequency-domain features from T8, T7, Pz, and AF4 also appear in the top 15, alongside the skewness and kurtosis of the AF3 channel, which are sensitive to non-Gaussian amplitude distributions.
+
+	\subsection{Limitations}
+
+	Several limitations of this work should be acknowledged. First, the class imbalance was not addressed with advanced resampling techniques, which likely degraded non-stress recall significantly. Second, no artifact rejection or independent component analysis was performed, meaning that eye movements, muscle artifacts, and electrode noise may have influenced the extracted features. Third, the Gradient Boosting model was used with default hyperparameters, and no hyperparameter optimization was performed. Finally, the problem setting aggregates four different stress-inducing conditions into a single class, which may introduce within-class heterogeneity that complicates learning.
+
+	\subsection{Possible Improvements}
+
+	Future improvements to this work could include applying SMOTE or other oversampling strategies to address class imbalance, performing artifact removal before feature extraction, tuning model hyperparameters through nested cross-validation, and exploring subject-level generalization by splitting data strictly by subject identity. Deep learning approaches such as convolutional or recurrent neural networks operating directly on raw EEG windows could also be explored as an alternative to handcrafted feature extraction. Additionally, extending the feature set with connectivity measures between channels or non-linear features such as sample entropy and Hjorth parameters could improve classification performance.
 	
 	% =====================================================
 	% 6. CONCLUSION
 	% =====================================================
 	\section{Conclusion}
-	
-	% We will fill this section later.
+
+	This project investigated the feasibility of detecting mental stress from EEG recordings using classical machine learning classifiers. Starting from raw EDF files containing five EEG channels, we designed a complete data science pipeline that includes signal preprocessing, window-based segmentation, statistical and frequency-domain feature extraction, model training, and rigorous cross-validation.
+
+	The central methodological contribution of this project was the deliberate comparison of two validation strategies. The random \texttt{StratifiedKFold} evaluation produced inflated results due to data leakage between highly correlated windows from the same EDF recording. The \texttt{GroupKFold} evaluation corrected this by enforcing strict recording-level separation between training and test data, yielding a more honest estimate of model generalization. This finding is directly relevant to objective 6 of the project and highlights a methodological pitfall that is common in EEG-based classification literature.
+
+	Among the five models evaluated, Gradient Boosting achieved the best Macro F1-score of 0.59 under GroupKFold validation, satisfying the project's objective of identifying the most suitable model. The final model detected stress windows with high recall (0.98) and reasonable precision (0.83), but struggled significantly with non-stress window detection (recall = 0.16), which is attributable to the 86.6\%/13.4\% class imbalance in the dataset. Feature importance analysis showed that gamma-band power, particularly at the AF4 channel, dominated the model's decision, alongside contributions from frequency features across multiple channels.
+
+	In summary, the project demonstrates that EEG features extracted from short time windows contain sufficient information to distinguish stress from non-stress states at a level above random chance, even under conservative evaluation conditions. However, the class imbalance problem remains a critical limitation that must be addressed in future work. Applying oversampling techniques, artifact rejection, and subject-independent evaluation protocols are the most promising directions for improving both the robustness and the clinical applicability of the approach.
 	
 	% =====================================================
 	% BIBLIOGRAPHY
 	% =====================================================
 	\newpage
-	\begin{thebibliography}{9}
-		
+	\begin{thebibliography}{99}
+
 		\bibitem{dataset}
-		Mendeley Data.
+		Mane, M. (2023).
 		\textit{An EEG Recordings Dataset for Mental Stress Detection}.
-		Available at: \url{https://data.mendeley.com/datasets/wnshbvdxs2/1}
-		
+		Mendeley Data, Version 1.
+		DOI: \href{https://doi.org/10.17632/wnshbvdxs2.1}{10.17632/wnshbvdxs2.1}
+
 		\bibitem{mne}
-		Gramfort, A. et al.
+		Gramfort, A., Luessi, M., Larson, E., Engemann, D.A., Strohmeier, D., Brodbeck, C., Parkkonen, L., and Hämäläinen, M. (2014).
 		\textit{MNE software for processing MEG and EEG data}.
-		NeuroImage, 2014.
-		
+		NeuroImage, 86, 446--460.
+		DOI: \href{https://doi.org/10.1016/j.neuroimage.2013.10.027}{10.1016/j.neuroimage.2013.10.027}
+
 		\bibitem{sklearn}
-		Pedregosa, F. et al.
+		Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O., Blondel, M., Prettenhofer, P., Weiss, R., Dubourg, V., Vanderplas, J., Passos, A., Cournapeau, D., Brucher, M., Perrot, M., and Duchesnay, E. (2011).
 		\textit{Scikit-learn: Machine Learning in Python}.
-		Journal of Machine Learning Research, 2011.
-		
+		Journal of Machine Learning Research, 12, 2825--2830.
+
+		\bibitem{healey2005}
+		Healey, J.A. and Picard, R.W. (2005).
+		\textit{Detecting stress during real-world driving tasks using physiological sensors}.
+		IEEE Transactions on Intelligent Transportation Systems, 6(2), 156--166.
+		DOI: \href{https://doi.org/10.1109/TITS.2005.848368}{10.1109/TITS.2005.848368}
+
+		\bibitem{alberdi2016}
+		Alberdi, A., Aztiria, A., and Basarab, A. (2016).
+		\textit{Towards an automatic early stress recognition system for office environments based on multimodal measurements: A review}.
+		Journal of Biomedical Informatics, 59, 49--75.
+		DOI: \href{https://doi.org/10.1016/j.jbi.2015.11.007}{10.1016/j.jbi.2015.11.007}
+
+		\bibitem{saeed2020}
+		Saeed, S.M.U., Anwar, S.M., Khalid, H., Majid, M., and Bagci, U. (2020).
+		\textit{EEG based classification of long-term stress using psychological labeling}.
+		Sensors, 20(7), 1886.
+		DOI: \href{https://doi.org/10.3390/s20071886}{10.3390/s20071886}
+
+		\bibitem{bandratios2021}
+		Khosrowabadi, R., Quek, H.C., Ang, K.K., Tung, S.W., and Heijnen, M. (2011).
+		\textit{A brain-computer interface for classifying EEG correlates of chronic mental stress}.
+		Proceedings of the International Joint Conference on Neural Networks (IJCNN), 757--762.
+		DOI: \href{https://doi.org/10.1109/IJCNN.2011.6033297}{10.1109/IJCNN.2011.6033297}
+
+		\bibitem{stressreview2022}
+		Jebelli, H., Hwang, S., and Lee, S. (2018).
+		\textit{EEG-based workers' stress recognition at construction sites}.
+		Automation in Construction, 93, 315--324.
+		DOI: \href{https://doi.org/10.1016/j.autcon.2018.05.027}{10.1016/j.autcon.2018.05.027}
+
+		\bibitem{friedman2001}
+		Friedman, J.H. (2001).
+		\textit{Greedy function approximation: A gradient boosting machine}.
+		Annals of Statistics, 29(5), 1189--1232.
+		DOI: \href{https://doi.org/10.1214/aos/1013203451}{10.1214/aos/1013203451}
+
+		\bibitem{stuldreher2021}
+		Stuldreher, I.V., Shemyakina, N., Kamp, T., Nikulin, V.V., Brouwer, A., and van Erp, J.B.F. (2021).
+		\textit{Neurophysiological correlates of cognitive load in EEG classification: Transferability across mental tasks and subjects}.
+		IEEE Transactions on Neural Systems and Rehabilitation Engineering, 29, 1875--1885.
+		DOI: \href{https://doi.org/10.1109/TNSRE.2021.3103495}{10.1109/TNSRE.2021.3103495}
+
+		\bibitem{welch1967}
+		Welch, P.D. (1967).
+		\textit{The use of fast Fourier transform for the estimation of power spectra: A method based on time averaging over short, modified periodograms}.
+		IEEE Transactions on Audio and Electroacoustics, 15(2), 70--73.
+		DOI: \href{https://doi.org/10.1109/TAU.1967.1161901}{10.1109/TAU.1967.1161901}
+
 	\end{thebibliography}
 	
 \end{document}

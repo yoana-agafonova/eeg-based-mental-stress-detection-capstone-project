@@ -1,0 +1,75 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{hyperref}
+\usepackage{parskip}
+\usepackage{xurl}
+
+\geometry{
+	a4paper,
+	left=2.5cm,
+	right=2.5cm,
+	top=2.5cm,
+	bottom=2.5cm
+}
+
+\onehalfspacing
+
+\begin{document}
+
+\begin{center}
+	{\Large \textbf{Individual Reflection}}\\[0.4em]
+	{\large EEG-Based Mental Stress Detection}\\[0.3em]
+	{\normalsize Iliana Hristova}\\[0.2em]
+	{\normalsize Data Science Capstone Project --- IMC University of Applied Sciences Krems}\\[0.2em]
+	{\normalsize June 2026}
+\end{center}
+
+\vspace{1em}
+
+\section*{Overview of My Contribution}
+
+This capstone project was a fully collaborative effort, and both Yoana and I were involved in every stage of the work. We discussed and decided on all major methodological choices together, from the labeling strategy for the experimental conditions to the final choice of evaluation metric. Within this shared effort, I took particular responsibility for the model training infrastructure, the cross-validation strategy comparison, and the discussion and report writing.
+
+I implemented the scikit-learn pipeline wrappers, the StratifiedKFold and GroupKFold evaluation loops, and the final hold-out evaluation using GroupShuffleSplit. I also led the literature review and was responsible for framing the success criterion of Macro F1 $\geq$ 0.55 based on what comparable studies report under realistic evaluation conditions. In the final stages, I took the lead on writing the Discussion and Conclusion sections of the report.
+
+\section*{What I Learned}
+
+The most important thing I learned during this project was how much the evaluation setup can determine the apparent success of a machine learning system. Before this project, I thought of cross-validation as a standard, largely interchangeable procedure. This project showed me that the choice of how you split your data is a modeling decision with real consequences.
+
+Specifically, I learned what data leakage looks like in practice with time-series data. Our StratifiedKFold results were impressive --- Random Forest reached a Macro F1 of 0.86. But once we switched to GroupKFold, the same model dropped to 0.54. That 0.32 gap is not noise or bad luck; it is a systematic bias introduced by allowing correlated windows from the same recording to be split between training and test sets. Understanding this will change how I design experiments in any future project involving sequential or grouped data.
+
+I also learned to think about metrics more carefully. Before this project, I would have reported accuracy as the headline number and noted class imbalance as a footnote. Now I understand that balanced accuracy and Macro F1 are the only honest metrics when classes are as skewed as ours (86.6\% vs.\ 13.4\%), and I can explain \emph{why} --- a naive classifier that always predicts the majority class achieves high accuracy for free.
+
+On a more technical level, I gained experience building scikit-learn pipelines with StandardScaler and class-weighted classifiers, and I became comfortable interpreting classification reports and confusion matrices for imbalanced problems.
+
+\section*{Challenges}
+
+The biggest challenge I faced was reconciling what the results \emph{appeared} to say with what they actually said. When we first saw the StratifiedKFold numbers, they looked excellent. It would have been easy to stop there, report them, and move on. Choosing to go further and identify the leakage problem required stepping back and asking uncomfortable questions about whether the results were real.
+
+A second challenge was communicating the class imbalance problem clearly in the report. It is tempting to frame a non-stress recall of 0.16 as a minor caveat, but it is actually the central failure mode of the system. Writing about it honestly --- as a fundamental bottleneck, not a side note --- required care to avoid either overstating or understating its significance.
+
+I also found the literature review more difficult than expected. Many published papers in EEG stress detection report accuracy as their sole metric, often without specifying their cross-validation strategy. This made it hard to compare our results to the literature, because we do not know whether the high accuracy numbers others report are genuine or the product of data leakage similar to what we identified in our own StratifiedKFold evaluation.
+
+\section*{Relevant Links}
+
+\begin{itemize}
+	\item \textbf{Source code:} \url{https://github.com/yoana-agafonova/eeg-based-mental-stress-detection-capstone-project.git}
+	\item \textbf{Dataset:} \url{https://data.mendeley.com/datasets/wnshbvdxs2/1}
+\end{itemize}
+
+\section*{Reflection}
+
+I am genuinely satisfied with how this project turned out. We built a complete, working pipeline; we made a real methodological contribution by comparing two cross-validation strategies; and we produced a report that is honest about both what works and what does not.
+
+The thing I am most proud of is that we reported the GroupKFold results as the main outcome, even though the StratifiedKFold results would have looked more impressive. I think that is the right scientific decision, and I hope it reflects well on how we approached the project.
+
+If I were to do this again, I would invest more time upfront in addressing the class imbalance --- specifically through SMOTE or by experimenting with threshold-adjusted classification. I would also try to include ICA in the preprocessing pipeline from the beginning, because the uncertainty around the gamma-band dominance (is it neural signal or muscle artifact?) is something I would want to resolve rather than leave as a limitation.
+
+This project has made me more careful as a data scientist and more aware of the ways in which an apparently good result can be misleading. That is a lesson I expect to carry with me well beyond this course.
+
+\end{document}
